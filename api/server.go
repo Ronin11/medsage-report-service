@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"compumed/report-service/reports"
+	"medsage/report-service/reports"
 
 	"github.com/google/uuid"
 )

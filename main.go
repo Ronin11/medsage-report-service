@@ -9,8 +9,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"compumed/report-service/api"
-	"compumed/report-service/reports"
+	"medsage/report-service/api"
+	"medsage/report-service/reports"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -22,7 +22,7 @@ func main() {
 	}))
 	slog.SetDefault(logger)
 
-	slog.Info("Starting Compumed Report Service")
+	slog.Info("Starting Medsage Report Service")
 
 	// Load configuration
 	config := loadConfig()

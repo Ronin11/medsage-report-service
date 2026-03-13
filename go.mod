@@ -1,11 +1,13 @@
-module compumed/report-service
+module medsage/report-service
 
-go 1.24.0
+go 1.26.1
 
 require (
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.5.4
 )
+
+replace medsage/proto => ../proto/gen/go
 
 require (
 	github.com/jackc/pgpassfile v1.0.0 // indirect
