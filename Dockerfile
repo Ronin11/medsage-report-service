@@ -1,19 +1,20 @@
 # Build stage
-FROM golang:1.24-alpine AS builder
+FROM golang:1.26-alpine AS builder
 
 WORKDIR /app
 
 # Install git for go mod download
 RUN apk add --no-cache git
 
-# Copy go mod files
-COPY go.mod go.sum* ./
+# Copy proto dependency and go mod files
+COPY proto/gen/go/ /proto/gen/go/
+COPY report-service/go.mod report-service/go.sum* ./
 
 # Download dependencies
 RUN go mod download
 
 # Copy source code
-COPY . .
+COPY report-service/ .
 
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux go build -o /report-service .
