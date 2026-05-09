@@ -6,8 +6,9 @@ WORKDIR /app
 # Install git for go mod download
 RUN apk add --no-cache git
 
-# Copy proto dependency and go mod files
+# Copy proto + authkit dependencies and go mod files
 COPY proto/gen/go/ /proto/gen/go/
+COPY auth/ /auth/
 COPY report-service/go.mod report-service/go.sum* ./
 
 # Download dependencies

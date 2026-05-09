@@ -6,6 +6,7 @@ RUN go install github.com/air-verse/air@v1.61.7
 WORKDIR /app
 
 COPY proto/gen/go/ /proto/gen/go/
+COPY auth/ /auth/
 COPY report-service/go.mod report-service/go.sum* ./
 RUN go mod download
 

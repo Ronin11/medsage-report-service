@@ -8,46 +8,60 @@ import (
 	"net/http"
 	"time"
 
+	"medsage/authkit"
 	"medsage/report-service/reports"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Server struct {
 	httpServer *http.Server
 	store      *reports.Store
+	pool       *pgxpool.Pool
 }
 
-func NewServer(addr string, store *reports.Store) *Server {
-	s := &Server{store: store}
+// NewServer wires the HTTP routes. authMW is the Bearer-token middleware that
+// every report endpoint (except /health) is mounted behind. requireAdmin is
+// composed on top of authMW for endpoints that span all devices (audit log).
+func NewServer(addr string, store *reports.Store, pool *pgxpool.Pool, authMW func(http.Handler) http.Handler) *Server {
+	s := &Server{store: store, pool: pool}
 
-	mux := http.NewServeMux()
+	requireAdmin := authkit.RequireRole("admin")
 
-	// Adherence
-	mux.HandleFunc("GET /api/reports/adherence", s.handleAdherence)
-	mux.HandleFunc("GET /api/reports/adherence/csv", s.handleAdherenceCSV)
+	root := http.NewServeMux()
 
-	// Device activity
-	mux.HandleFunc("GET /api/reports/activity", s.handleActivity)
-	mux.HandleFunc("GET /api/reports/activity/csv", s.handleActivityCSV)
-
-	// Audit log
-	mux.HandleFunc("GET /api/reports/audit", s.handleAudit)
-	mux.HandleFunc("GET /api/reports/audit/csv", s.handleAuditCSV)
-
-	// Event summary
-	mux.HandleFunc("GET /api/reports/events/summary", s.handleEventSummary)
-	mux.HandleFunc("GET /api/reports/events/summary/csv", s.handleEventSummaryCSV)
-
-	// Health check
-	mux.HandleFunc("GET /api/reports/health", func(w http.ResponseWriter, r *http.Request) {
+	// Health is intentionally unauthenticated.
+	root.HandleFunc("GET /api/reports/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status":"ok"}`))
 	})
 
+	// Device-scoped reports: middleware authenticates, handler scope-checks.
+	scoped := http.NewServeMux()
+	scoped.HandleFunc("GET /api/reports/adherence", s.handleAdherence)
+	scoped.HandleFunc("GET /api/reports/adherence/csv", s.handleAdherenceCSV)
+	scoped.HandleFunc("GET /api/reports/activity", s.handleActivity)
+	scoped.HandleFunc("GET /api/reports/activity/csv", s.handleActivityCSV)
+	scoped.HandleFunc("GET /api/reports/events/summary", s.handleEventSummary)
+	scoped.HandleFunc("GET /api/reports/events/summary/csv", s.handleEventSummaryCSV)
+	root.Handle("/api/reports/adherence", authMW(scoped))
+	root.Handle("/api/reports/adherence/csv", authMW(scoped))
+	root.Handle("/api/reports/activity", authMW(scoped))
+	root.Handle("/api/reports/activity/csv", authMW(scoped))
+	root.Handle("/api/reports/events/summary", authMW(scoped))
+	root.Handle("/api/reports/events/summary/csv", authMW(scoped))
+
+	// Cross-device audit log: admin only.
+	audit := http.NewServeMux()
+	audit.HandleFunc("GET /api/reports/audit", s.handleAudit)
+	audit.HandleFunc("GET /api/reports/audit/csv", s.handleAuditCSV)
+	root.Handle("/api/reports/audit", authMW(requireAdmin(audit)))
+	root.Handle("/api/reports/audit/csv", authMW(requireAdmin(audit)))
+
 	s.httpServer = &http.Server{
 		Addr:    addr,
-		Handler: corsMiddleware(mux),
+		Handler: corsMiddleware(root),
 	}
 
 	return s
@@ -107,7 +121,6 @@ func parseDateRange(r *http.Request) (time.Time, time.Time, error) {
 		return time.Time{}, time.Time{}, fmt.Errorf("invalid to date: %w", err)
 	}
 
-	// Make 'to' inclusive of the whole day
 	to = to.AddDate(0, 0, 1)
 
 	return from, to, nil
@@ -124,12 +137,40 @@ func writeError(w http.ResponseWriter, msg string, code int) {
 	json.NewEncoder(w).Encode(map[string]string{"error": msg})
 }
 
+// authorizeDevice verifies the authenticated caller may read the given device.
+// Admins and support staff bypass the per-device check. Returns true on
+// success; on failure it has already written the response.
+func (s *Server) authorizeDevice(w http.ResponseWriter, r *http.Request, deviceID uuid.UUID) bool {
+	user, ok := authkit.UserFromContext(r.Context())
+	if !ok {
+		writeError(w, "unauthenticated", http.StatusUnauthorized)
+		return false
+	}
+	if user.IsAdmin() || user.IsSupport() {
+		return true
+	}
+	allowed, err := authkit.CanAccessDevice(r.Context(), s.pool, user.ID, deviceID.String())
+	if err != nil {
+		slog.Error("Device scope check failed", "error", err, "user_id", user.ID, "device_id", deviceID)
+		writeError(w, "scope check failed", http.StatusInternalServerError)
+		return false
+	}
+	if !allowed {
+		writeError(w, "forbidden", http.StatusForbidden)
+		return false
+	}
+	return true
+}
+
 // --- Adherence ---
 
 func (s *Server) handleAdherence(w http.ResponseWriter, r *http.Request) {
 	deviceID, err := parseDeviceID(r)
 	if err != nil {
 		writeError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if !s.authorizeDevice(w, r, deviceID) {
 		return
 	}
 	from, to, err := parseDateRange(r)
@@ -152,6 +193,9 @@ func (s *Server) handleAdherenceCSV(w http.ResponseWriter, r *http.Request) {
 	deviceID, err := parseDeviceID(r)
 	if err != nil {
 		writeError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if !s.authorizeDevice(w, r, deviceID) {
 		return
 	}
 	from, to, err := parseDateRange(r)
@@ -180,6 +224,9 @@ func (s *Server) handleActivity(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	if !s.authorizeDevice(w, r, deviceID) {
+		return
+	}
 	from, to, err := parseDateRange(r)
 	if err != nil {
 		writeError(w, err.Error(), http.StatusBadRequest)
@@ -200,6 +247,9 @@ func (s *Server) handleActivityCSV(w http.ResponseWriter, r *http.Request) {
 	deviceID, err := parseDeviceID(r)
 	if err != nil {
 		writeError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if !s.authorizeDevice(w, r, deviceID) {
 		return
 	}
 	from, to, err := parseDateRange(r)
@@ -286,6 +336,9 @@ func (s *Server) handleEventSummary(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	if !s.authorizeDevice(w, r, deviceID) {
+		return
+	}
 	from, to, err := parseDateRange(r)
 	if err != nil {
 		writeError(w, err.Error(), http.StatusBadRequest)
@@ -306,6 +359,9 @@ func (s *Server) handleEventSummaryCSV(w http.ResponseWriter, r *http.Request) {
 	deviceID, err := parseDeviceID(r)
 	if err != nil {
 		writeError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if !s.authorizeDevice(w, r, deviceID) {
 		return
 	}
 	from, to, err := parseDateRange(r)

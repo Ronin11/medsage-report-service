@@ -42,18 +42,16 @@ type AdherenceReport struct {
 }
 
 func (s *Store) GetAdherenceReport(ctx context.Context, deviceID uuid.UUID, from, to time.Time) (*AdherenceReport, error) {
+	// Reads from daily_adherence rollup. The streaming projector keeps it
+	// near-real-time; the nightly reconciler heals any drift by overwriting
+	// from the events table. `to` is the day-after the inclusive end, so we
+	// use a half-open range [from, to).
 	query := `
-		SELECT
-			(created_at AT TIME ZONE 'UTC')::date AS day,
-			COUNT(*) FILTER (WHERE event_type = 'medication_dispensed') AS dispensed,
-			COUNT(*) FILTER (WHERE event_type = 'medication_missed')    AS missed,
-			COUNT(*) FILTER (WHERE event_type = 'medication_confirmed') AS confirmed
-		FROM events
-		WHERE stream_id = $1
-		  AND event_type IN ('medication_dispensed', 'medication_missed', 'medication_confirmed')
-		  AND created_at >= $2
-		  AND created_at < $3
-		GROUP BY day
+		SELECT day, dispensed, missed, confirmed
+		FROM daily_adherence
+		WHERE device_id = $1
+		  AND day >= $2::date
+		  AND day <  $3::date
 		ORDER BY day
 	`
 
