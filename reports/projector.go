@@ -1,6 +1,10 @@
 package reports
 
 import (
+	"errors"
+
+	"github.com/jackc/pgx/v5/pgconn"
+
 	"context"
 	"fmt"
 	"log/slog"
@@ -60,6 +64,23 @@ func (p *Projector) applyAdherence(ctx context.Context, evt *eventsv1.DeviceEven
 	`, column)
 
 	if _, err := p.pool.Exec(ctx, query, deviceID, day); err != nil {
+		// daily_adherence.device_id references devices. A device publishing
+		// under an id that was never registered — a bench unit re-provisioned
+		// under a new UUID still emits under its old one — therefore fails the
+		// foreign key. Returning the error would leave the event to be
+		// redelivered forever, so it is dropped from the rollup and logged
+		// loudly: it cannot be attributed to anyone, but silently discarding
+		// medication events is not acceptable either. The reconciler skips the
+		// same rows for the same reason.
+		if isUnknownDeviceFK(err) {
+			slog.Warn("Adherence event from an unregistered device; not projected",
+				"device_id", deviceID,
+				"day", day,
+				"column", column,
+				"hint", "register the device, or reconcile the id it publishes under",
+			)
+			return nil
+		}
 		return fmt.Errorf("upsert daily_adherence: %w", err)
 	}
 
@@ -69,6 +90,17 @@ func (p *Projector) applyAdherence(ctx context.Context, evt *eventsv1.DeviceEven
 		"column", column,
 	)
 	return nil
+}
+
+// isUnknownDeviceFK reports whether an error is the daily_adherence foreign key
+// rejecting an unknown device, as opposed to any other database failure — which
+// must still surface.
+func isUnknownDeviceFK(err error) bool {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) {
+		return false
+	}
+	return pgErr.Code == "23503" && pgErr.ConstraintName == "daily_adherence_device_id_fkey"
 }
 
 func adherenceColumn(t eventsv1.EventType) string {
