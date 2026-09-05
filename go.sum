@@ -2,6 +2,8 @@ github.com/Nerzal/gocloak/v13 v13.9.0 h1:YWsJsdM5b0yhM2Ba3MLydiOlujkBry4TtdzfIzS
 github.com/Nerzal/gocloak/v13 v13.9.0/go.mod h1:YYuDcXZ7K2zKECyVP7pPqjKxx2AzYSpKDj8d6GuyM10=
 github.com/Ronin11/medsage-authkit v0.1.0 h1:eKsIPzr7HGR+0ZNi+scJI+aHwU75mQiCFL7MjlHJlzM=
 github.com/Ronin11/medsage-authkit v0.1.0/go.mod h1:GrDrTUzFMJXMFdV1xJdB0YTwE7MzIFxXpXZ+II5+b3c=
+github.com/Ronin11/medsage-proto v0.1.0 h1:mK7osSmYdbSEMwuD/sxZZxL1TtsEbI3a5eowsnm2fac=
+github.com/Ronin11/medsage-proto v0.1.0/go.mod h1:TxPTUzDIimzRMB6Pq3iXvkmJSN/wj7RJ9pqqNeJAcvA=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=

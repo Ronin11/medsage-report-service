@@ -10,7 +10,7 @@ import (
 	"log/slog"
 	"time"
 
-	eventsv1 "medsage/proto/medsage/events/v1"
+	eventsv1 "github.com/Ronin11/medsage-proto/medsage/events/v1"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"

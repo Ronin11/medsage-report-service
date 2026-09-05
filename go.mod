@@ -4,14 +4,12 @@ go 1.26.1
 
 require (
 	github.com/Ronin11/medsage-authkit v0.1.0
+	github.com/Ronin11/medsage-proto v0.1.0
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.5.4
 	github.com/nats-io/nats.go v1.49.0
 	google.golang.org/protobuf v1.36.11
-	medsage/proto v0.0.0-00010101000000-000000000000
 )
-
-replace medsage/proto => ../proto/gen/go
 
 require (
 	github.com/Nerzal/gocloak/v13 v13.9.0 // indirect

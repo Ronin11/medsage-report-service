@@ -8,7 +8,7 @@ import (
 
 	"testing"
 
-	eventsv1 "medsage/proto/medsage/events/v1"
+	eventsv1 "github.com/Ronin11/medsage-proto/medsage/events/v1"
 )
 
 func TestAdherenceColumn(t *testing.T) {
