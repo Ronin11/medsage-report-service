@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"medsage/authkit"
+	"github.com/Ronin11/medsage-authkit"
 	"medsage/report-service/reports"
 
 	"github.com/google/uuid"

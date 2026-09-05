@@ -10,7 +10,7 @@ import (
 	"syscall"
 	"time"
 
-	"medsage/authkit"
+	"github.com/Ronin11/medsage-authkit"
 	"medsage/report-service/api"
 	natsbus "medsage/report-service/nats"
 	"medsage/report-service/reports"
