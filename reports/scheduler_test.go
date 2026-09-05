@@ -79,7 +79,7 @@ func TestRenderAdherenceHTML(t *testing.T) {
 			},
 		}
 
-		html, err := renderAdherenceHTML(report, "weekly")
+		html, err := RenderAdherenceHTML(report, "weekly")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -107,7 +107,7 @@ func TestRenderAdherenceHTML(t *testing.T) {
 
 	t.Run("empty daily renders no-data message", func(t *testing.T) {
 		report := &AdherenceReport{From: from, To: to, Daily: []AdherenceRow{}}
-		html, err := renderAdherenceHTML(report, "monthly")
+		html, err := RenderAdherenceHTML(report, "monthly")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -121,7 +121,7 @@ func TestRenderAdherenceHTML(t *testing.T) {
 
 	t.Run("zero adherence rate", func(t *testing.T) {
 		report := &AdherenceReport{From: from, To: to, AdherenceRate: 0}
-		html, err := renderAdherenceHTML(report, "weekly")
+		html, err := RenderAdherenceHTML(report, "weekly")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}

@@ -79,13 +79,41 @@ func (r *Reconciler) ReconcileDay(ctx context.Context, day string) error {
 			COUNT(*) FILTER (WHERE event_type = 'medication_missed'),
 			COUNT(*) FILTER (WHERE event_type = 'medication_confirmed'),
 			NOW()
-		FROM events
+		FROM events e
 		WHERE event_type IN ('medication_dispensed', 'medication_missed', 'medication_confirmed')
 		  AND (created_at AT TIME ZONE 'UTC')::date = $1::date
+		  -- daily_adherence.device_id references devices, so an event from a
+		  -- stream that is not a registered device would abort the whole
+		  -- statement on the foreign key — taking every other device's rollup
+		  -- for that day down with it. Devices can and do publish under an id
+		  -- that was never registered (a bench unit re-provisioned under a new
+		  -- UUID still emits under its old one), so this has to skip them
+		  -- rather than fail the night.
+		  AND EXISTS (SELECT 1 FROM devices d WHERE d.id = e.stream_id)
 		GROUP BY stream_id
 	`, day)
 	if err != nil {
 		return fmt.Errorf("insert recomputed: %w", err)
+	}
+
+	// Surface what was skipped: silently dropping medication events is exactly
+	// the kind of thing that should be noticed, not swallowed.
+	var orphanEvents, orphanStreams int
+	if err := tx.QueryRow(ctx, `
+		SELECT COUNT(*), COUNT(DISTINCT e.stream_id)
+		FROM events e
+		WHERE event_type IN ('medication_dispensed', 'medication_missed', 'medication_confirmed')
+		  AND (created_at AT TIME ZONE 'UTC')::date = $1::date
+		  AND NOT EXISTS (SELECT 1 FROM devices d WHERE d.id = e.stream_id)
+	`, day).Scan(&orphanEvents, &orphanStreams); err != nil {
+		return fmt.Errorf("count unregistered streams: %w", err)
+	}
+	if orphanEvents > 0 {
+		slog.Warn("Skipped medication events from unregistered devices",
+			"day", day,
+			"events", orphanEvents,
+			"streams", orphanStreams,
+		)
 	}
 
 	if err := tx.Commit(ctx); err != nil {

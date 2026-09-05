@@ -123,7 +123,7 @@ func (s *Scheduler) processAdherence(ctx context.Context, sub dueSubscription, f
 		return fmt.Errorf("get adherence report: %w", err)
 	}
 
-	html, err := renderAdherenceHTML(report, sub.Cadence)
+	html, err := RenderAdherenceHTML(report, sub.Cadence)
 	if err != nil {
 		return fmt.Errorf("render html: %w", err)
 	}
@@ -258,7 +258,9 @@ const adherenceEmailTemplate = `<!DOCTYPE html>
 
 var adherenceTmpl = template.Must(template.New("adherence_email").Parse(adherenceEmailTemplate))
 
-func renderAdherenceHTML(report *AdherenceReport, cadence string) (string, error) {
+// RenderAdherenceHTML renders the email body a subscriber receives. Exported so
+// dev tooling can show the real thing instead of reimplementing the template.
+func RenderAdherenceHTML(report *AdherenceReport, cadence string) (string, error) {
 	data := struct {
 		Report       *AdherenceReport
 		Cadence      string
